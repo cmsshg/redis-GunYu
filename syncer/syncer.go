@@ -282,6 +282,14 @@ func (s *syncer) updateStateMetric() {
 }
 
 func (s *syncer) run() error {
+	defer func() {
+		s.guard.Lock()
+		channel := s.channel
+		s.guard.Unlock()
+		if channel != nil {
+			channel.Close()
+		}
+	}()
 	for {
 		state := s.getState()
 		s.updateStateMetric()
@@ -305,7 +313,7 @@ func (s *syncer) run() error {
 				s.guard.Lock()
 				wait := s.wait
 				s.guard.Unlock()
-				if wait.IsClosed() {
+				if s.getState() != SyncerStatePause && wait.IsClosed() {
 					return wait.Error()
 				}
 			}
@@ -323,10 +331,8 @@ func (s *syncer) run() error {
 			}
 		case SyncerStateStop:
 			s.guard.Lock()
-			channel := s.channel
 			wait := s.wait
 			s.guard.Unlock()
-			channel.Close()
 			return wait.Error()
 		}
 	}
